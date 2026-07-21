@@ -31,16 +31,21 @@ class QueryRequest(BaseModel):
     top_k: Optional[int] = 4
 
 
-@app.on_event("startup")
-async def startup_event():
-    print("[DocuMind AI] Starting backend server...")
-    # Automatically scan & index existing PDFs in workspace
+def _background_indexing():
     try:
         results = rag_engine.index_workspace_pdfs()
         if results:
             print(f"[DocuMind AI] Automatically indexed {len(results)} workspace PDF documents.")
     except Exception as e:
         print(f"[DocuMind AI] Startup indexing notice: {e}")
+
+
+@app.on_event("startup")
+async def startup_event():
+    print("[DocuMind AI] Starting backend server...")
+    import asyncio
+    asyncio.create_task(asyncio.to_thread(_background_indexing))
+
 
 
 @app.get("/api/health")
