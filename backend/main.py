@@ -31,9 +31,11 @@ class QueryRequest(BaseModel):
     top_k: Optional[int] = 4
 
 
-def _background_indexing():
+async def _delayed_background_indexing():
+    import asyncio
+    await asyncio.sleep(15)  # Wait for health check & port scan to finish
     try:
-        results = rag_engine.index_workspace_pdfs()
+        results = await asyncio.to_thread(rag_engine.index_workspace_pdfs)
         if results:
             print(f"[DocuMind AI] Automatically indexed {len(results)} workspace PDF documents.")
     except Exception as e:
@@ -44,7 +46,8 @@ def _background_indexing():
 async def startup_event():
     print("[DocuMind AI] Starting backend server...")
     import asyncio
-    asyncio.create_task(asyncio.to_thread(_background_indexing))
+    asyncio.create_task(_delayed_background_indexing())
+
 
 
 

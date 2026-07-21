@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from sentence_transformers import SentenceTransformer
 import chromadb
 from langchain_google_genai import ChatGoogleGenerativeAI
 
@@ -14,7 +13,7 @@ load_dotenv()
 
 
 class EmbeddingManager:
-    """Manages sentence-transformers embedding generation."""
+    """Manages sentence-transformers embedding generation with memory optimization."""
     def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
         self.model_name = model_name
         self._model = None
@@ -22,11 +21,19 @@ class EmbeddingManager:
     @property
     def model(self):
         if self._model is None:
+            try:
+                import torch
+                torch.set_num_threads(1)
+                torch.set_num_interop_threads(1)
+            except Exception:
+                pass
+            from sentence_transformers import SentenceTransformer
             self._model = SentenceTransformer(self.model_name)
         return self._model
 
     def generate_embeddings(self, texts: List[str]):
-        return self.model.encode(texts, show_progress_bar=False)
+        return self.model.encode(texts, show_progress_bar=False, batch_size=8)
+
 
 
 class VectorStoreManager:
