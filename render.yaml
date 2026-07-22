@@ -2,9 +2,21 @@ services:
   - type: web
     name: DocuMind-AI
     env: python
-    buildCommand: pip install -r requirements.txt
+    region: oregon
+    plan: free
+    buildCommand: pip install --no-cache-dir -r requirements.txt
     startCommand: python start.py
     healthCheckPath: /api/health
     envVars:
       - key: GEMINI_API_KEY
         sync: false
+      - key: PORT
+        value: 10000
+      - key: OMP_NUM_THREADS
+        value: "1"
+      - key: MKL_NUM_THREADS
+        value: "1"
+      - key: TOKENIZERS_PARALLELISM
+        value: "false"
+      - key: PYTORCH_ENABLE_MPS_FALLBACK
+        value: "0"
