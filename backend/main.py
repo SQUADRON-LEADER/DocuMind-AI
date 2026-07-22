@@ -142,6 +142,47 @@ def debug_info():
     }
 
 
+@app.get("/api/test-embed")
+def test_embed():
+    import os as _os
+    import google.generativeai as genai
+    api_key = _os.getenv("GEMINI_API_KEY")
+    genai.configure(api_key=api_key)
+
+    supported_models = []
+    try:
+        for m in genai.list_models():
+            if "embedContent" in m.supported_generation_methods:
+                supported_models.append(m.name)
+    except Exception as e:
+        supported_models = [f"list_models error: {str(e)}"]
+
+    results = {}
+    candidates = [
+        "models/text-embedding-004",
+        "text-embedding-004",
+        "models/embedding-001",
+        "embedding-001"
+    ]
+    for model_name in candidates:
+        try:
+            res = genai.embed_content(
+                model=model_name,
+                content="test content",
+                task_type="retrieval_document"
+            )
+            emb = res.get("embedding", [])
+            results[model_name] = f"SUCCESS: vector dim = {len(emb)}"
+        except Exception as e:
+            results[model_name] = f"ERROR: {str(e)}"
+
+    return {
+        "supported_models_from_api": supported_models,
+        "test_results": results
+    }
+
+
+
 @app.post("/api/query")
 def execute_query(req: QueryRequest):
     if not req.query or not req.query.strip():
