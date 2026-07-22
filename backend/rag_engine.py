@@ -1,5 +1,6 @@
 import os
 import uuid
+import numpy as np
 import fitz  # PyMuPDF
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
@@ -7,20 +8,33 @@ from dotenv import load_dotenv
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import chromadb
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 
 load_dotenv()
+
+# Use Google Embedding API on Render (no heavy ML libs needed)
+# Fall back to sentence-transformers locally
+_USE_GOOGLE_EMBEDDINGS = os.environ.get("RENDER", "").lower() in ("true", "1", "yes")
 
 
 class EmbeddingManager:
     """Manages sentence-transformers embedding generation with memory optimization."""
     def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
         self.model_name = model_name
-        self._model = None
+        self._local_model = None
+        self._google_model = None
 
-    @property
-    def model(self):
-        if self._model is None:
+    def _get_google_model(self):
+        if self._google_model is None:
+            api_key = os.getenv("GEMINI_API_KEY")
+            self._google_model = GoogleGenerativeAIEmbeddings(
+                model="models/text-embedding-004",
+                google_api_key=api_key
+            )
+        return self._google_model
+
+    def _get_local_model(self):
+        if self._local_model is None:
             try:
                 import torch
                 torch.set_num_threads(1)
@@ -28,11 +42,27 @@ class EmbeddingManager:
             except Exception:
                 pass
             from sentence_transformers import SentenceTransformer
-            self._model = SentenceTransformer(self.model_name)
-        return self._model
+            self._local_model = SentenceTransformer(self.model_name)
+        return self._local_model
 
     def generate_embeddings(self, texts: List[str]):
-        return self.model.encode(texts, show_progress_bar=False, batch_size=8)
+        if _USE_GOOGLE_EMBEDDINGS:
+            # Google embedding API — no local ML model needed
+            model = self._get_google_model()
+            embeddings = model.embed_documents(texts)
+            return np.array(embeddings)
+        else:
+            model = self._get_local_model()
+            return model.encode(texts, show_progress_bar=False, batch_size=8)
+
+    def generate_query_embedding(self, text: str):
+        if _USE_GOOGLE_EMBEDDINGS:
+            model = self._get_google_model()
+            embedding = model.embed_query(text)
+            return np.array(embedding)
+        else:
+            model = self._get_local_model()
+            return model.encode([text], show_progress_bar=False)[0]
 
 
 
@@ -214,7 +244,7 @@ class RAGEngine:
         if self.vector_store.collection.count() == 0:
             return []
 
-        query_emb = self.embedding_manager.generate_embeddings([query])[0]
+        query_emb = self.embedding_manager.generate_query_embedding(query)
         results = self.vector_store.collection.query(
             query_embeddings=[query_emb.tolist()],
             n_results=min(top_k, self.vector_store.collection.count())
