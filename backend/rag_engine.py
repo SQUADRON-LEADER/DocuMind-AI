@@ -315,32 +315,29 @@ Context:
 Query: {query_text}
 """
 
-        candidate_models = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.0-flash"]
+        candidate_models = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]
         answer = None
         api_key = os.getenv("GEMINI_API_KEY")
 
         if api_key:
+            self.embedding_manager._configure_google()
             for model_name in candidate_models:
                 try:
-                    llm_instance = ChatGoogleGenerativeAI(
-                        google_api_key=api_key,
-                        model=model_name,
-                        temperature=0.1,
-                        max_output_tokens=1200,
-                        max_retries=1,
-                        request_timeout=10.0
+                    model_inst = genai.GenerativeModel(model_name)
+                    response = model_inst.generate_content(
+                        prompt,
+                        generation_config=genai.types.GenerationConfig(
+                            temperature=0.1,
+                            max_output_tokens=1200,
+                        )
                     )
-                    response = llm_instance.invoke(prompt)
-                    content = response.content
-                    if isinstance(content, list):
-                        text_parts = [p.get("text", "") if isinstance(p, dict) else str(p) for p in content]
-                        answer = "\n".join(text_parts)
-                    else:
-                        answer = str(content)
-                    if answer and answer.strip():
+                    if response and response.text:
+                        answer = response.text.strip()
                         break
-                except Exception:
+                except Exception as e:
+                    print(f"[DocuMind AI] LLM generation error with {model_name}: {e}")
                     continue
+
 
         if not answer or not answer.strip():
             answer = "No answer found in the provided document context."
