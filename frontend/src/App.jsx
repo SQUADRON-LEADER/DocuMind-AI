@@ -5,6 +5,10 @@ import {
 import ReactMarkdown from 'react-markdown';
 import Marquee from 'react-fast-marquee';
 
+// In dev: empty string (Vite proxy handles /api/*)
+// On Vercel: set VITE_API_URL=https://documind-ai-1-byl3.onrender.com
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
 export default function App() {
   const [stats, setStats] = useState({ total_chunks: 0, total_documents: 0 });
   const [documents, setDocuments] = useState([]);
@@ -35,7 +39,7 @@ export default function App() {
 
   const fetchStats = async () => {
     try {
-      const res = await fetch('/api/stats');
+      const res = await fetch(`${API_BASE}/api/stats`);
       if (res.ok) {
         const data = await res.json();
         setStats(data);
@@ -47,7 +51,7 @@ export default function App() {
 
   const fetchDocuments = async () => {
     try {
-      const res = await fetch('/api/documents');
+      const res = await fetch(`${API_BASE}/api/documents`);
       if (res.ok) {
         const data = await res.json();
         setDocuments(data.documents || []);
@@ -66,7 +70,7 @@ export default function App() {
     }
 
     try {
-      const res = await fetch('/api/upload', {
+      const res = await fetch(`${API_BASE}/api/upload`, {
         method: 'POST',
         body: formData
       });
@@ -86,7 +90,7 @@ export default function App() {
   const handleDeleteDoc = async (filename) => {
     if (!confirm(`REMOVE ${filename.toUpperCase()} FROM VECTOR STORE?`)) return;
     try {
-      const res = await fetch(`/api/documents/${encodeURIComponent(filename)}`, {
+      const res = await fetch(`${API_BASE}/api/documents/${encodeURIComponent(filename)}`, {
         method: 'DELETE'
       });
       if (res.ok) {
@@ -108,7 +112,7 @@ export default function App() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/query', {
+      const res = await fetch(`${API_BASE}/api/query`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: textToSubmit, top_k: 4 })
