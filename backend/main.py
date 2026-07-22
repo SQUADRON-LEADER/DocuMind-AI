@@ -1,8 +1,11 @@
 import os
 import shutil
+from pathlib import Path
 from typing import Optional, List
 from fastapi import FastAPI, File, UploadFile, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from backend.rag_engine import RAGEngine
@@ -137,3 +140,18 @@ def execute_query(req: QueryRequest):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend.main:app", host="127.0.0.1", port=8000, reload=True)
+
+
+# ── Serve built React frontend (must be LAST so /api/* routes take priority) ──
+_FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
+if _FRONTEND_DIST.exists():
+    app.mount("/assets", StaticFiles(directory=str(_FRONTEND_DIST / "assets")), name="assets")
+
+    @app.get("/")
+    @app.get("/{full_path:path}")
+    def serve_spa(full_path: str = ""):
+        """Catch-all: serve index.html for any non-API route (React SPA)."""
+        index = _FRONTEND_DIST / "index.html"
+        if index.exists():
+            return FileResponse(str(index))
+        return {"error": "Frontend not built. Run: cd frontend && npm run build"}

@@ -18,7 +18,8 @@ data/vector_store/
 
 # Node & Frontend
 node_modules/
-dist/
+# Allow committing the built frontend so Render can serve it without Node.js
+!frontend/dist/
 .vite/
 npm-debug.log*
 yarn-debug.log*

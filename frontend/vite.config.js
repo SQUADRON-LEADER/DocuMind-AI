@@ -8,7 +8,8 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        // In dev: proxy to local backend. Set VITE_API_URL to override.
+        target: process.env.VITE_API_URL || 'http://127.0.0.1:8000',
         changeOrigin: true
       }
     }
