@@ -8,7 +8,8 @@ from dotenv import load_dotenv
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import chromadb
-from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+import google.generativeai as genai
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 load_dotenv()
 
@@ -18,20 +19,21 @@ _USE_GOOGLE_EMBEDDINGS = os.environ.get("RENDER", "").lower() in ("true", "1", "
 
 
 class EmbeddingManager:
-    """Manages sentence-transformers embedding generation with memory optimization."""
+    """Manages embedding generation.
+
+    On Render: uses google.generativeai.embed_content (v1 API, not v1beta) directly.
+    Locally: uses sentence-transformers.
+    """
     def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
         self.model_name = model_name
         self._local_model = None
-        self._google_model = None
+        self._configured = False
 
-    def _get_google_model(self):
-        if self._google_model is None:
+    def _configure_google(self):
+        if not self._configured:
             api_key = os.getenv("GEMINI_API_KEY")
-            self._google_model = GoogleGenerativeAIEmbeddings(
-                model="models/embedding-001",
-                google_api_key=api_key
-            )
-        return self._google_model
+            genai.configure(api_key=api_key)
+            self._configured = True
 
     def _get_local_model(self):
         if self._local_model is None:
@@ -47,23 +49,39 @@ class EmbeddingManager:
 
     def generate_embeddings(self, texts: List[str]):
         if _USE_GOOGLE_EMBEDDINGS:
-            # Google embedding API — no local ML model needed
-            model = self._get_google_model()
-            embeddings = model.embed_documents(texts)
-            return np.array(embeddings)
+            self._configure_google()
+            # Embed in batches of 100 (API limit)
+            all_embeddings = []
+            for i in range(0, len(texts), 100):
+                batch = texts[i:i+100]
+                result = genai.embed_content(
+                    model="models/text-embedding-004",
+                    content=batch,
+                    task_type="retrieval_document"
+                )
+                # result['embedding'] is list of vectors when content is a list
+                vecs = result['embedding']
+                if isinstance(vecs[0], float):   # single text returned flat list
+                    all_embeddings.append(vecs)
+                else:
+                    all_embeddings.extend(vecs)
+            return np.array(all_embeddings)
         else:
             model = self._get_local_model()
             return model.encode(texts, show_progress_bar=False, batch_size=8)
 
     def generate_query_embedding(self, text: str):
         if _USE_GOOGLE_EMBEDDINGS:
-            model = self._get_google_model()
-            embedding = model.embed_query(text)
-            return np.array(embedding)
+            self._configure_google()
+            result = genai.embed_content(
+                model="models/text-embedding-004",
+                content=text,
+                task_type="retrieval_query"
+            )
+            return np.array(result['embedding'])
         else:
             model = self._get_local_model()
             return model.encode([text], show_progress_bar=False)[0]
-
 
 
 class VectorStoreManager:
