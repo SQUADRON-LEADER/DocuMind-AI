@@ -13,11 +13,12 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Enable CORS for local development (frontend running on port 5173 or 3000)
+# CORS: allow_credentials must be False when allow_origins=["*"]
+# (browsers reject credentials=True + wildcard origin — blocks Vercel → Render calls)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
