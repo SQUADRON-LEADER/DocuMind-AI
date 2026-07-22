@@ -31,22 +31,26 @@ class QueryRequest(BaseModel):
     top_k: Optional[int] = 4
 
 
-async def _delayed_background_indexing():
-    import asyncio
-    await asyncio.sleep(15)  # Wait for health check & port scan to finish
-    try:
-        results = await asyncio.to_thread(rag_engine.index_workspace_pdfs)
-        if results:
-            print(f"[DocuMind AI] Automatically indexed {len(results)} workspace PDF documents.")
-    except Exception as e:
-        print(f"[DocuMind AI] Startup indexing notice: {e}")
-
-
 @app.on_event("startup")
 async def startup_event():
     print("[DocuMind AI] Starting backend server...")
-    import asyncio
-    asyncio.create_task(_delayed_background_indexing())
+    # Skip auto-indexing on Render (RENDER env var is always set there).
+    # Auto-indexing loads the ~400MB embedding model which OOMs the 512MB free tier.
+    # Users upload PDFs via the UI instead.
+    is_render = os.environ.get("RENDER", "").lower() in ("true", "1", "yes")
+    if not is_render:
+        import asyncio
+        async def _delayed_indexing():
+            await asyncio.sleep(15)
+            try:
+                results = await asyncio.to_thread(rag_engine.index_workspace_pdfs)
+                if results:
+                    print(f"[DocuMind AI] Indexed {len(results)} workspace PDF documents.")
+            except Exception as e:
+                print(f"[DocuMind AI] Startup indexing notice: {e}")
+        asyncio.create_task(_delayed_indexing())
+    else:
+        print("[DocuMind AI] Running on Render — skipping auto-indexing to conserve memory.")
 
 
 
