@@ -118,15 +118,27 @@ async def upload_documents(files: List[UploadFile] = File(...)):
             res = rag_engine.process_pdf_file(file_path)
             results.append(res)
         except Exception as e:
-            results.append({
-                "filename": file.filename,
-                "status": "error",
-                "error": str(e)
-            })
+            import traceback
+            err_detail = traceback.format_exc()
+            print(f"[DocuMind AI] Upload error for {file.filename}: {err_detail}")
+            raise HTTPException(status_code=500, detail=f"Indexing failed for '{file.filename}': {str(e)}")
 
     return {
         "message": f"Processed {len(files)} files",
         "details": results
+    }
+
+
+@app.get("/api/debug")
+def debug_info():
+    """Debug endpoint — shows embedding mode and config without secrets."""
+    import os as _os
+    return {
+        "render_env": _os.environ.get("RENDER", "not set"),
+        "gemini_api_key_set": bool(_os.environ.get("GEMINI_API_KEY")),
+        "embedding_mode": "google" if _os.environ.get("RENDER", "").lower() in ("true","1","yes") else "local",
+        "vector_count": rag_engine.vector_store.collection.count(),
+        "uploads_dir": rag_engine.uploads_dir,
     }
 
 

@@ -74,9 +74,12 @@ class VectorStoreManager:
         os.makedirs(self.persist_directory, exist_ok=True)
         
         self.client = chromadb.PersistentClient(path=self.persist_directory)
+        # embedding_function=None: we manage our own embeddings (Google API or sentence-transformers)
+        # Without this, chromadb loads its default ONNX model (memory-intensive)
         self.collection = self.client.get_or_create_collection(
             name=self.collection_name,
-            metadata={"description": "Vector store for DocuMind AI PDF embeddings"}
+            metadata={"description": "Vector store for DocuMind AI PDF embeddings"},
+            embedding_function=None
         )
 
     def add_documents(self, documents: List[Document], embeddings) -> int:

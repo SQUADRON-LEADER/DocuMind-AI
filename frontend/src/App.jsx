@@ -75,10 +75,17 @@ export default function App() {
         body: formData
       });
       if (res.ok) {
+        const data = await res.json();
+        // Check if any file had an indexing error
+        const errors = (data.details || []).filter(d => d.status === 'error');
+        if (errors.length > 0) {
+          alert(`INDEXING ERROR: ${errors.map(e => e.error).join('\n')}`);
+        }
         await fetchStats();
         await fetchDocuments();
       } else {
-        alert("ERROR UPLOADING PDF DOCUMENT.");
+        const errData = await res.json().catch(() => ({}));
+        alert(`ERROR: ${errData.detail || 'Upload failed. Check Render logs.'}`);
       }
     } catch (err) {
       console.error("Upload error:", err);
