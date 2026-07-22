@@ -28,7 +28,7 @@ class EmbeddingManager:
         if self._google_model is None:
             api_key = os.getenv("GEMINI_API_KEY")
             self._google_model = GoogleGenerativeAIEmbeddings(
-                model="models/text-embedding-004",
+                model="models/embedding-001",
                 google_api_key=api_key
             )
         return self._google_model
