@@ -50,21 +50,33 @@ class EmbeddingManager:
     def generate_embeddings(self, texts: List[str]):
         if _USE_GOOGLE_EMBEDDINGS:
             self._configure_google()
-            # Embed in batches of 100 (API limit)
+            import time
             all_embeddings = []
-            for i in range(0, len(texts), 100):
-                batch = texts[i:i+100]
-                result = genai.embed_content(
-                    model="models/gemini-embedding-001",
-                    content=batch,
-                    task_type="retrieval_document"
-                )
-                # result['embedding'] is list of vectors when content is a list
-                vecs = result['embedding']
-                if isinstance(vecs[0], float):   # single text returned flat list
+            batch_size = 30  # Smaller batch size to prevent hitting 100 RPM quota
+            for i in range(0, len(texts), batch_size):
+                batch = texts[i:i+batch_size]
+                vecs = None
+                for attempt in range(5):
+                    try:
+                        result = genai.embed_content(
+                            model="models/gemini-embedding-001",
+                            content=batch,
+                            task_type="retrieval_document"
+                        )
+                        vecs = result['embedding']
+                        break
+                    except Exception as e:
+                        if "429" in str(e) or "quota" in str(e).lower():
+                            time.sleep(3 * (attempt + 1))
+                        else:
+                            raise e
+                if vecs is None:
+                    raise RuntimeError("Embedding rate limit exceeded after retries. Please wait a moment and try again.")
+                if isinstance(vecs[0], float):
                     all_embeddings.append(vecs)
                 else:
                     all_embeddings.extend(vecs)
+                time.sleep(0.6)  # Pause between batches
             return np.array(all_embeddings)
         else:
             model = self._get_local_model()
@@ -73,15 +85,25 @@ class EmbeddingManager:
     def generate_query_embedding(self, text: str):
         if _USE_GOOGLE_EMBEDDINGS:
             self._configure_google()
-            result = genai.embed_content(
-                model="models/gemini-embedding-001",
-                content=text,
-                task_type="retrieval_query"
-            )
-            return np.array(result['embedding'])
+            import time
+            for attempt in range(5):
+                try:
+                    result = genai.embed_content(
+                        model="models/gemini-embedding-001",
+                        content=text,
+                        task_type="retrieval_query"
+                    )
+                    return np.array(result['embedding'])
+                except Exception as e:
+                    if "429" in str(e) or "quota" in str(e).lower():
+                        time.sleep(3 * (attempt + 1))
+                    else:
+                        raise e
+            raise RuntimeError("Query embedding rate limit exceeded. Please wait a moment and try again.")
         else:
             model = self._get_local_model()
             return model.encode([text], show_progress_bar=False)[0]
+
 
 
 class VectorStoreManager:
