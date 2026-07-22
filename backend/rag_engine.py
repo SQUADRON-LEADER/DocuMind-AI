@@ -55,7 +55,7 @@ class EmbeddingManager:
             for i in range(0, len(texts), 100):
                 batch = texts[i:i+100]
                 result = genai.embed_content(
-                    model="models/text-embedding-004",
+                    model="models/gemini-embedding-001",
                     content=batch,
                     task_type="retrieval_document"
                 )
@@ -74,7 +74,7 @@ class EmbeddingManager:
         if _USE_GOOGLE_EMBEDDINGS:
             self._configure_google()
             result = genai.embed_content(
-                model="models/text-embedding-004",
+                model="models/gemini-embedding-001",
                 content=text,
                 task_type="retrieval_query"
             )
